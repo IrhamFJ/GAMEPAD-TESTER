@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gamepad Tester Pro + Drift Analyzer</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background-color: #0f172a;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+        }
+
+        h1 { color: #38bdf8; margin-bottom: 5px; }
+        .status { margin-bottom: 20px; font-style: italic; color: #94a3b8; font-size: 14px; }
+
+        #gamepad-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            width: 100%;
+            max-width: 1000px;
+        }
+
+        .card {
+            background: #1e293b;
+            border: 2px solid #334155;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+        }
+
+        .id-text { color: #fbbf24; font-weight: bold; font-size: 13px; margin-bottom: 15px; border-bottom: 1px solid #334155; padding-bottom: 10px; }
+
+        .axes-container {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 15px;
+        }
+
+        .axis-box {
+            text-align: center;
+            background: #0f172a;
+            padding: 12px;
+            border-radius: 12px;
+            width: 130px;
+        }
+
+        .stick-visual {
+            width: 70px;
+            height: 70px;
+            background: #1e293b;
+            border: 2px solid #475569;
+            border-radius: 50%;
+            margin: 10px auto;
+            position: relative;
+        }
+
+        .stick-dot {
+            width: 12px;
+            height: 12px;
+            background: #38bdf8;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        /* Error Text Style */
+        .error-val {
+            font-size: 12px;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+        .error-good { color: #4ade80; } /* Hijau: Sehat */
+        .error-warn { color: #fbbf24; } /* Kuning: Mulai Drift */
+        .error-bad { color: #f87171; }  /* Merah: Rusak/Drift Parah */
+
+        .buttons-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+        }
+
+        .btn-check {
+            padding: 8px 0;
+            background: #334155;
+            border-radius: 4px;
+            text-align: center;
+            font-size: 11px;
+            color: #94a3b8;
+        }
+
+        .btn-check.active {
+            background: #38bdf8;
+            color: #0f172a;
+            font-weight: bold;
+        }
+
+        .placeholder {
+            text-align: center;
+            padding: 40px;
+            border: 2px dashed #334155;
+            border-radius: 20px;
+            color: #64748b;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>🎮 Gamepad Tester Pro</h1>
+    <div class="status" id="status-msg">Hubungkan gamepad dan gerakkan analog...</div>
+
+    <div id="gamepad-container">
+        <div class="placeholder">Menunggu input gamepad...</div>
+    </div>
+
+    <script>
+        const container = document.getElementById('gamepad-container');
+        const statusMsg = document.getElementById('status-msg');
+
+        window.addEventListener("gamepadconnected", () => updateUI());
+        window.addEventListener("gamepaddisconnected", () => updateUI());
+
+        function updateUI() {
+            const gamepads = navigator.getGamepads();
+            container.innerHTML = "";
+            let found = false;
+
+            for (let i = 0; i < gamepads.length; i++) {
+                const gp = gamepads[i];
+                if (gp) {
+                    found = true;
+                    const card = document.createElement('div');
+                    card.className = 'card';
+                    
+                    let buttonsHTML = "";
+                    gp.buttons.forEach((btn, idx) => {
+                        buttonsHTML += `<div class="btn-check" id="gp-${gp.index}-btn-${idx}">B${idx}</div>`;
+                    });
+
+                    card.innerHTML = `
+                        <div class="id-text">${gp.id}</div>
+                        <div class="axes-container">
+                            <div class="axis-box">
+                                <div style="font-size: 12px; opacity:0.8">LS Error</div>
+                                <div class="stick-visual"><div class="stick-dot" id="gp-${gp.index}-dot-0"></div></div>
+                                <div class="error-val" id="gp-${gp.index}-err-0">0.00%</div>
+                            </div>
+                            <div class="axis-box">
+                                <div style="font-size: 12px; opacity:0.8">RS Error</div>
+                                <div class="stick-visual"><div class="stick-dot" id="gp-${gp.index}-dot-1"></div></div>
+                                <div class="error-val" id="gp-${gp.index}-err-1">0.00%</div>
+                            </div>
+                        </div>
+                        <div class="buttons-grid">${buttonsHTML}</div>
+                    `;
+                    container.appendChild(card);
+                }
+            }
+            if (!found) container.innerHTML = '<div class="placeholder">Silakan hubungkan kontroler...</div>';
+        }
+
+        function calculateError(x, y) {
+            // Menghitung jarak Euclidean dari titik tengah (0,0)
+            // Rumus: sqrt(x^2 + y^2)
+            let distance = Math.sqrt(x*x + y*y);
+            return (distance * 100).toFixed(2);
+        }
+
+        function getErrorClass(val) {
+            if (val < 4) return 'error-good'; // Sangat Presisi
+            if (val < 12) return 'error-warn'; // Mulai Longgar
+            return 'error-bad'; // Drift Parah
+        }
+
+        function loop() {
+            const gamepads = navigator.getGamepads();
+            for (let i = 0; i < gamepads.length; i++) {
+                const gp = gamepads[i];
+                if (!gp) continue;
+
+                // Update Buttons
+                gp.buttons.forEach((btn, idx) => {
+                    const el = document.getElementById(`gp-${gp.index}-btn-${idx}`);
+                    if (el) el.className = btn.pressed ? 'btn-check active' : 'btn-check';
+                });
+
+                // Update LS (Axis 0, 1) & RS (Axis 2, 3)
+                const sticks = [
+                    { dot: `gp-${gp.index}-dot-0`, err: `gp-${gp.index}-err-0`, x: gp.axes[0], y: gp.axes[1] },
+                    { dot: `gp-${gp.index}-dot-1`, err: `gp-${gp.index}-err-1`, x: gp.axes[2], y: gp.axes[3] }
+                ];
+
+                sticks.forEach(s => {
+                    const dotEl = document.getElementById(s.dot);
+                    const errEl = document.getElementById(s.err);
+                    if (dotEl && errEl) {
+                        dotEl.style.left = `${50 + (s.x * 40)}%`;
+                        dotEl.style.top = `${50 + (s.y * 40)}%`;
+                        
+                        let error = calculateError(s.x, s.y);
+                        errEl.innerText = error + "%";
+                        errEl.className = "error-val " + getErrorClass(error);
+                    }
+                });
+            }
+            requestAnimationFrame(loop);
+        }
+
+        setInterval(updateUI, 1000);
+        loop();
+    </script>
+</body>
+</html>
